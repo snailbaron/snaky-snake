@@ -10,35 +10,119 @@ function! SetColors()
     syntax match SnakeBody /S/
     syntax match Wall /#/
 
-    syntax match ArrowBody /[.:']\+/ contained
-    syntax match Chosen /{.*}/ contains=ArrowBody
-    syntax match Quotes /[{}]/
+    syntax match Quotes /[{}]/ contained
+    syntax match ArrowBody /[\.:']\+/ contained
+    syntax match Chosen /{.*}/ contains=ArrowBody,Quotes
+    syntax match Note /\*/
 
     highlight SnakeHead guibg=DarkRed guifg=DarkRed
     highlight SnakeBody guibg=Blue guifg=Blue
     highlight Wall guibg=Gray guifg=Gray
     highlight ArrowBody guifg=Blue
-    "highlight Quotes guibg=Gray20 guifg=Gray20
+    highlight Chosen guifg=Blue
+    highlight ArrowBody guifg=Green
+    highlight Quotes guibg=Gray20 guifg=Gray20
+    highlight Note guifg=Gray50 guibg=Gray50
 endfunction
 
 " Common parameters
 let s:fieldWidth = 60
 let s:fieldHeight = 30
 let s:panelHeight = 10
+let s:screenWidth = (s:fieldWidth+2) * 2
+let s:screenHeight = s:fieldHeight + s:panelHeight + 3
 
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" Functions for drawind/output on screen
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
-function! PutSign(x, y, c)
-    call cursor(a:y + 1, 2*a:x + 1)
-    exec "normal R" . a:c . a:c
+" Put character on screen
+function! PutChar(x, y, c)
+    call cursor(a:y+1, a:x+1)
+    exec "normal R" . a:c
 endfunction
 
-function! DrawLine(x, y, dx, dy, l, c)
-    for i in range(0, a:l - 1)
-        call PutSign(a:x + a:dx*i, a:y + a:dy*i, a:c)
+" Put line on screen
+function! PutLine(x1, y1, x2, y2, c)
+    let x1 = min([a:x1, a:x2])
+    let x2 = max([a:x1, a:x2])
+    let y1 = min([a:y1, a:y2])
+    let y2 = max([a:y1, a:y2])
+
+    if (x2 - x1) >= (y2 - y1)
+        for x in range(x1, x2)
+            call PutChar(x, y1 + (x-x1) * (y2-y1) / (x2-x1), a:c)
+        endfor
+    else
+        for y in range(y1, y2)
+            call PutChar(x1 + (y-y1) * (x2-x1) / (y2-y1), y, a:c)
+        endfor
+    endif
+endfunction
+
+" Put rectangle on screen
+function! PutRect(x, y, w, h, c)
+    call PutLine(a:x, a:y, a:x + a:w - 1, a:y, a:c)
+    call PutLine(a:x + a:w - 1, a:y, a:x + a:w - 1, a:y + a:h - 1, a:c)
+    call PutLine(a:x + a:w - 1, a:y + a:h - 1, a:x, a:y + a:h - 1, a:c)
+    call PutLine(a:x, a:y + a:h - 1, a:x, a:y, a:c)
+endfunction
+
+" Put sided rectangle (rectangle with double vertical sides)
+function! PutSidedRect(x, y, w, h, c)
+    call PutRect(a:x, a:y, a:w, a:h, a:c)
+    call PutLine(a:x+1, a:y, a:x+1, a:y+a:h-1, a:c)
+    call PutLine(a:x+a:w-2, a:y, a:x+a:w-2, a:y+a:h-1, a:c)
+endfunction
+
+" Put full rectangle on screen
+function! PutFullRect(x, y, w, h, c)
+    for y in range(a:y, a:y + a:h - 1)
+        call PutLine(a:x, y, a:x + a:w - 1, y, a:c)
+    endfor
+endfunction
+    
+" Put a block of text on screen
+function! PutBlock(x, y, block)
+    for i in range(len(a:block))
+        call cursor(a:y+1+i, a:x+1)
+        exec "normal R" . a:block[i]
     endfor
 endfunction
 
 
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" Field manipulation
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+" Put an object on the field
+function! PutFieldObject(x, y, o)
+    call cursor(a:y + 1, 2*a:x + 1)
+    exec "normal R" . a:o . a:o
+endfunction
+
+" Clear field
+function! ClearField()
+    let line = "##" . repeat("  ", s:fieldWidth) . "##"
+    for i in range(2, s:fieldHeight+1)
+        call setline(i, line)
+    endfor
+endfunction
+
+" Draw the snake inside the field
+function! DrawSnake(snake)
+    call PutFieldObject(a:snake[0], a:snake[1], "H")
+    for i in range(2, len(a:snake)-1, 2)
+        call PutFieldObject(a:snake[i], a:snake[i+1], "S")
+    endfor
+endfunction
+
+
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" UI elements
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+" Arrow images
 let s:upArrow = [
 \   "        {   .   }         ",
 \   "        { .:::. }         ",
@@ -51,20 +135,18 @@ let s:upArrow = [
 \   "          ':::'           ",
 \   "            '             "
 \]
-
 let s:downArrow = [
 \   "            .             ",
 \   "          .:::.           ",
 \   "           :::            ",
 \   "    .      :::       .    ",
 \   "  .:::::::     ::::::::.  ",
-\   "   ':''''' ... '''''':'   ",
+\   "   ':'''''{...}'''''':'   ",
 \   "        {  :::  }         ",
 \   "        {  :::  }         ",
 \   "        { ':::' }         ",
 \   "        {   '   }         "
 \]
-
 
 let s:leftArrow = [
 \   "            .             ",
@@ -78,8 +160,6 @@ let s:leftArrow = [
 \   "          ':::'           ",
 \   "            '             "
 \]
-
-
 let s:rightArrow = [
 \   "            .             ",
 \   "          .:::.           ",
@@ -93,14 +173,7 @@ let s:rightArrow = [
 \   "            '             "
 \]
 
-function! DrawBlock(x, y, block)
-    for i in range(0, len(a:block)-1)
-        call cursor(a:y+i, a:x)
-        exec "normal R" . a:block[i]
-    endfor
-endfunction
-
-
+" Draw arrow (current snake direction)
 function! DrawDirection(dir)
     if a:dir == [ -1, 0 ]
         let arrow = s:leftArrow
@@ -112,12 +185,12 @@ function! DrawDirection(dir)
         let arrow = s:downArrow
     endif
         
-    call DrawBlock(3, s:fieldHeight+3, arrow)
+    call PutBlock(2, s:fieldHeight+2, arrow)
 endfunction
 
-
-function! PrepareField()
-    " Clear field
+" Prepare all fields (separate screen into zones, draw borders)
+function! PrepareUi()
+    " Clear buffer
     exec "normal ggVGd"
     let line = repeat("  ", s:fieldWidth + 2)
     for i in range(1, s:fieldHeight+s:panelHeight+3)
@@ -125,36 +198,47 @@ function! PrepareField()
     endfor
 
     " Draw borders
-    call DrawLine(0, 0, 1, 0, s:fieldWidth+2, "#")
-    call DrawLine(0, s:fieldHeight + 1, 1, 0, s:fieldWidth+2, "#")
-    call DrawLine(0, s:fieldHeight + s:panelHeight + 2, 1, 0, s:fieldWidth+2, "#")
-    call DrawLine(0, 0, 0, 1, s:fieldHeight+s:panelHeight+3, "#")
-    call DrawLine(s:fieldWidth + 1, 0, 0, 1, s:fieldHeight+s:panelHeight+2, "#")
+    call PutSidedRect(0, 0, (s:fieldWidth+2)*2, (s:fieldHeight+s:panelHeight+3), "#")
+    call PutFullRect(0, (s:fieldHeight+2) - 1, (s:fieldWidth+2)*2, 1, "#")
 endfunction
 
-function! ClearField()
-    let line = "##" . repeat("  ", s:fieldWidth) . "##"
-    for i in range(2, s:fieldHeight+1)
-        call setline(i, line)
+" Draw a message in center of screen
+function! DrawMessage(msg)
+    let msgW = float2nr(s:screenWidth * 0.8 + 0.5)
+    let msgX = float2nr(s:screenWidth * 0.1 + 0.5)
+    let msgY = float2nr(s:screenHeight * 0.4 + 0.5)
+
+    let textWidth = msgW - 6
+    let words = split(a:msg)
+    let lines = [ remove(words, 0) ]
+
+    let i = 0
+    for w in words
+        if strlen(lines[i]) + strlen(w) + 1 <= textWidth
+            let lines[i] = lines[i] . " " . w
+        else
+            let i = i + 1
+            call add(lines, w)
+        endif
     endfor
+    let h = len(lines) + 4
+
+    call PutLine(msgX, msgY, msgX, msgY + h - 1, "*")
+    call PutRect(msgX+1, msgY, msgW-2, h, "*")
+    call PutLine(msgX + msgW - 1, msgY, msgX + msgW - 1, msgY + h - 1, "*")
+    call PutBlock(msgX + 3, msgY + 2, lines)
 endfunction
 
-
-function! DrawSnake(snake)
-    call PutSign(a:snake[0], a:snake[1], "H")
-    for i in range(2, len(a:snake)-1, 2)
-        call PutSign(a:snake[i], a:snake[i+1], "S")
-    endfor
-endfunction
-
-function! DrawDir(dir)
-endfunction
 
 
 function! Run()
     call SetColors()
 
-    call PrepareField()
+    call PrepareUi()
+
+    "call DrawMessage("You lose oh motherfucker fuck fucking god yeah yeah dododo dont zuza")
+
+    return
 
 
     let snake = [ 3, 3, 2, 3, 1, 3 ]
@@ -201,6 +285,13 @@ function! Run()
         endfor
         let snake[0] = snake[0] + dir[0]
         let snake[1] = snake[1] + dir[1]
+
+        " Check collisions
+        if snake[0] < 0 || snake[0] >= s:fieldWidth || snake[1] < 0 || snake[1] >= s:fieldHeight
+            call DrawMessage("You lose")
+            let finished = 1
+            break
+        endif
 
         call ClearField()
         call DrawSnake(snake)
