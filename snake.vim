@@ -9,6 +9,7 @@ function! SetColors()
     syntax match SnakeHead /H/
     syntax match SnakeBody /S/
     syntax match Wall /#/
+    syntax match Food /F/
 
     syntax match Quotes /[{}]/ contained
     syntax match ArrowBody /[\.:']\+/ contained
@@ -23,6 +24,7 @@ function! SetColors()
     highlight ArrowBody guifg=Green
     highlight Quotes guibg=Gray20 guifg=Gray20
     highlight Note guifg=Gray50 guibg=Gray50
+    highlight Food guifg=Red guibg=Red
 endfunction
 
 " Common parameters
@@ -31,6 +33,15 @@ let s:fieldHeight = 30
 let s:panelHeight = 10
 let s:screenWidth = (s:fieldWidth+2) * 2
 let s:screenHeight = s:fieldHeight + s:panelHeight + 3
+
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" System functions
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+function! Rand()
+    return str2nr(matchstr(reltimestr(reltime()), '\v\.@<=\d+')[1:])
+endfunction
+
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " Functions for drawind/output on screen
@@ -115,6 +126,11 @@ function! DrawSnake(snake)
     for i in range(2, len(a:snake)-1, 2)
         call PutFieldObject(a:snake[i], a:snake[i+1], "S")
     endfor
+endfunction
+
+" Draw food on the field
+function! DrawFood(food)
+    call PutFieldObject(a:food[0], a:food[1], "F")
 endfunction
 
 
@@ -233,16 +249,12 @@ endfunction
 
 function! Run()
     call SetColors()
-
     call PrepareUi()
-
-    "call DrawMessage("You lose oh motherfucker fuck fucking god yeah yeah dododo dont zuza")
-
-    return
-
 
     let snake = [ 3, 3, 2, 3, 1, 3 ]
     let dir = [ 1, 0 ]
+
+    let food = [ 10, 10 ]
 
     call DrawSnake(snake)
     call DrawDirection(dir)
@@ -278,6 +290,8 @@ function! Run()
 
 
         "call PutSign(snake[len(snake)-2], snake[len(snake)-1], " ")
+        
+        let tail = [ snake[len(snake)-2], snake[len(snake)-1] ]
 
         " Move snake logically
         for i in range(len(snake)-1, 2, -1)
@@ -292,9 +306,17 @@ function! Run()
             let finished = 1
             break
         endif
+        
+        " Check food
+        if snake[0] == food[0] && snake[1] == food[1]
+            call add(snake, tail[0])
+            call add(snake, tail[1])
+            let food = [ Rand() % s:fieldWidth, Rand() % s:fieldHeight ]
+        endif
 
         call ClearField()
         call DrawSnake(snake)
+        call DrawFood(food)
 
         redraw
 
